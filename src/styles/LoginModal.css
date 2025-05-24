@@ -1,0 +1,231 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  padding: 2.5rem;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.close-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  border: none;
+  background: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #333;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.close-button:hover {
+  background-color: #f5f6f7;
+}
+
+h2 {
+  margin-bottom: 2rem;
+  text-align: center;
+  color: #191f28;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+input {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #e5e8eb;
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: all 0.2s;
+  background-color: #f9fafb;
+  color: #191f28;
+  -webkit-box-shadow: 0 0 0 30px #f9fafb inset !important;
+  -webkit-text-fill-color: #191f28 !important;
+}
+
+/* 자동완성 스타일 재정의 */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #f9fafb inset !important;
+  -webkit-text-fill-color: #191f28 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+input::placeholder {
+  color: #CBD5E0;
+  font-size: 0.95rem;
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.error-message {
+  color: #E53E3E;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  text-align: left;
+  line-height: 1.5;
+}
+
+input:focus {
+  outline: none;
+  border-color: #4A5568;
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(74, 85, 104, 0.1);
+}
+
+.login-button {
+  width: 100%;
+  padding: 1rem;
+  background-color: #4A5568;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 1.5rem;
+  transition: all 0.2s;
+}
+
+.login-button:hover {
+  background-color: #2D3748;
+}
+
+.signup-section {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.signup-section p {
+  margin-bottom: 0.75rem;
+  color: #4e5968;
+  font-size: 0.95rem;
+}
+
+.signup-button {
+  background: none;
+  border: none;
+  color: #4A5568;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.signup-button:hover {
+  text-decoration: underline;
+}
+
+/* 유효성 검사 시 배경색 */
+.input-error {
+  border-color: #E53E3E !important;
+  background-color: #FFF5F5 !important;
+  -webkit-box-shadow: 0 0 0 30px #FFF5F5 inset !important;
+}
+
+.input-valid {
+  border-color: #A3E635 !important;
+  background-color: #F8FBE9 !important;
+  -webkit-box-shadow: 0 0 0 30px #F8FBE9 inset !important;
+}
+
+/* 자동완성 + 유효성 검사 조합 */
+.input-error:-webkit-autofill,
+.input-error:-webkit-autofill:hover,
+.input-error:-webkit-autofill:focus,
+.input-error:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #FFF5F5 inset !important;
+}
+
+.input-valid:-webkit-autofill,
+.input-valid:-webkit-autofill:hover,
+.input-valid:-webkit-autofill:focus,
+.input-valid:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #F8FBE9 inset !important;
+}
+
+.field-error-message {
+  color: #E53E3E;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  text-align: left;
+}
+
+.field-info-message {
+  color: #718096;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  text-align: left;
+}
+
+.nickname-group {
+  position: relative;
+}
+
+.nickname-input-wrapper {
+  display: flex;
+  gap: 8px;
+}
+
+.nickname-input-wrapper input {
+  flex: 1;
+}
+
+.check-nickname-button {
+  padding: 0 16px;
+  height: 48px;
+  border: none;
+  border-radius: 12px;
+  background-color: #4A5568;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.check-nickname-button:hover {
+  background-color: #2D3748;
+}
+
+.check-nickname-button:disabled {
+  background-color: #CBD5E0;
+  cursor: not-allowed;
+}
+
+.field-success-message {
+  color: #059669;
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+  text-align: left;
+  line-height: 1.5;
+} 
