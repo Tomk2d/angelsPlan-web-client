@@ -1,12 +1,17 @@
-import React from 'react';
-import MainPage from './pages/MainPage';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import MainBoard from './pages/MainBoard';
+import { AuthProvider } from './contexts/AuthContext';
 import './App.css';
 
 function App() {
   return (
-    <div className="App">
-      <MainPage />
-    </div>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<MainBoard />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 }
 
