@@ -3,39 +3,63 @@ import styled from '@emotion/styled';
 import LoginModal from '../components/LoginModal';
 import SignupModal from '../components/SignupModal';
 import { useAuth } from '../contexts/AuthContext';
+import { Game } from '../types/game';
+import WebSocketService from '../services/websocketService';
+import { useNavigate } from 'react-router-dom';
 
-interface GameCard {
-  id: number;
-  title: string;
-  description: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-}
-
-const SAMPLE_GAMES: GameCard[] = [
-  {
-    id: 1,
-    title: '숫자 맞추기',
-    description: '1부터 100까지의 숫자 중 하나를 맞춰보세요!',
-    difficulty: 'easy',
-  },
-  {
-    id: 2,
-    title: '단어 퍼즐',
-    description: '주어진 글자로 단어를 만들어보세요!',
-    difficulty: 'medium',
-  },
-  {
-    id: 3,
-    title: '메모리 게임',
-    description: '카드를 뒤집어 짝을 맞춰보세요!',
-    difficulty: 'hard',
-  },
-];
+const buttonStyles = `
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+`;
 
 const MainBoard = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
+  const [isGameModalOpen, setIsGameModalOpen] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const websocketService = WebSocketService.getInstance();
+
+  useEffect(() => {
+    websocketService.connect();
+    return () => {
+      websocketService.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const response = await fetch('http://localhost:8080/api/games/list', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error('게임 목록을 불러오는데 실패했습니다.');
+        }
+        
+        const gameList = await response.json();
+        setGames(gameList);
+      } catch (err) {
+        console.error('게임 목록 로딩 에러:', err);
+        setError(err instanceof Error ? err.message : '게임 목록을 불러오는데 실패했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGames();
+  }, []);
 
   // 인증 상태 변화 로깅
   useEffect(() => {
@@ -68,6 +92,60 @@ const MainBoard = () => {
     logout();
   };
 
+  const handleGameClick = (game: Game) => {
+    setSelectedGame(game);
+    setIsGameModalOpen(true);
+  };
+
+  const handleCloseGameModal = () => {
+    setIsGameModalOpen(false);
+    setSelectedGame(null);
+  };
+
+  const handleCreateRoom = async () => {
+    if (!selectedGame) return;
+
+    try {
+      const { roomId } = await websocketService.createRoom(selectedGame.id);
+      navigate(`/game/${selectedGame.id}/room/${roomId}`);
+    } catch (error) {
+      console.error('방 생성 실패:', error);
+      // TODO: 에러 처리 (예: 토스트 메시지 표시)
+    }
+  };
+
+  const handleQuickJoin = async () => {
+    if (!selectedGame) return;
+
+    try {
+      const { roomId } = await websocketService.quickJoin(selectedGame.id);
+      navigate(`/game/${selectedGame.id}/room/${roomId}`);
+    } catch (error) {
+      console.error('빠른 참가 실패:', error);
+      // TODO: 에러 처리 (예: 토스트 메시지 표시)
+    }
+  };
+
+  if (loading) {
+    return (
+      <PageContainer>
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  if (error) {
+    return (
+      <PageContainer>
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="text-red-500">{error}</div>
+        </div>
+      </PageContainer>
+    );
+  }
+
   return (
     <PageContainer>
       <Header>
@@ -90,8 +168,12 @@ const MainBoard = () => {
       </Header>
       <MainContent>
         <GameGrid>
-          {SAMPLE_GAMES.map((game) => (
-            <GameCardComponent key={game.id} game={game} />
+          {games.map((game) => (
+            <GameCardComponent 
+              key={game.id} 
+              game={game} 
+              onClick={() => handleGameClick(game)}
+            />
           ))}
         </GameGrid>
       </MainContent>
@@ -105,21 +187,71 @@ const MainBoard = () => {
         onClose={handleCloseSignupModal}
         onSignupSuccess={handleSignupSuccess}
       />
+      {selectedGame && (
+        <GameModal
+          isOpen={isGameModalOpen}
+          onClose={handleCloseGameModal}
+          game={selectedGame}
+          onCreateRoom={handleCreateRoom}
+          onQuickJoin={handleQuickJoin}
+        />
+      )}
     </PageContainer>
   );
 };
 
-const GameCardComponent: React.FC<{ game: GameCard }> = ({ game }) => {
+const GameCardComponent: React.FC<{ game: Game; onClick: () => void }> = ({ game, onClick }) => {
+  const truncatedDescription = game.description.length > 100 
+    ? `${game.description.slice(0, 100)}...` 
+    : game.description;
+
   return (
-    <Card difficulty={game.difficulty}>
+    <Card onClick={onClick}>
+      <CardImage src={game.thumbnailUrl} alt={game.name} />
       <CardContent>
-        <CardTitle>{game.title}</CardTitle>
-        <CardDescription>{game.description}</CardDescription>
-        <DifficultyBadge difficulty={game.difficulty}>
-          {game.difficulty}
-        </DifficultyBadge>
+        <CardTitle>{game.name}</CardTitle>
+        <CardDescription>{truncatedDescription}</CardDescription>
+        <PlayerCount>
+          <HashTag>{game.minPlayers}~{game.maxPlayers}인</HashTag>
+        </PlayerCount>
       </CardContent>
     </Card>
+  );
+};
+
+const GameModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  game: Game;
+  onCreateRoom: () => void;
+  onQuickJoin: () => void;
+}> = ({ isOpen, onClose, game, onCreateRoom, onQuickJoin }) => {
+  if (!isOpen) return null;
+
+  return (
+    <ModalOverlay onClick={onClose}>
+      <ModalContent onClick={e => e.stopPropagation()}>
+        <ModalHeader>
+          <ModalTitle>{game.name}</ModalTitle>
+          <CloseButton onClick={onClose}>&times;</CloseButton>
+        </ModalHeader>
+        <ModalBody>
+          <GameImage src={game.thumbnailUrl} alt={game.name} />
+          <GameDescription>{game.description}</GameDescription>
+          <PlayerInfo>
+            <HashTag>{game.minPlayers}~{game.maxPlayers}인</HashTag>
+          </PlayerInfo>
+        </ModalBody>
+        <ModalFooter>
+          <ModalButton onClick={onCreateRoom} primary>
+            방 생성하기
+          </ModalButton>
+          <ModalButton onClick={onQuickJoin}>
+            빠른 참가하기
+          </ModalButton>
+        </ModalFooter>
+      </ModalContent>
+    </ModalOverlay>
   );
 };
 
@@ -194,97 +326,193 @@ const WelcomeText = styled.span`
   font-weight: 500;
 `;
 
-const buttonStyles = `
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-`;
-
-const LoginButton = styled.button`
-  ${buttonStyles}
-  background-color: #007AFF;
-  color: white;
-  border: none;
-
-  &:hover {
-    background-color: #0056b3;
-  }
-`;
-
-const LogoutButton = styled.button`
-  ${buttonStyles}
-  background-color: #f1f3f5;
-  color: #495057;
-  border: 1px solid #dee2e6;
-
-  &:hover {
-    background-color: #e9ecef;
-  }
-`;
-
-const Card = styled.div<{ difficulty: string }>`
-  background: white;
+const Card = styled.div`
+  background-color: white;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
   cursor: pointer;
-  height: 200px;
-  display: flex;
-  flex-direction: column;
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
   }
+`;
+
+const CardImage = styled.img`
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-bottom: 1px solid #eee;
 `;
 
 const CardContent = styled.div`
   padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  justify-content: space-between;
 `;
 
 const CardTitle = styled.h3`
   font-size: 1.5rem;
   font-weight: 600;
-  margin: 0 0 0.5rem 0;
   color: #1a1a1a;
+  margin: 0 0 0.5rem 0;
 `;
 
 const CardDescription = styled.p`
-  font-size: 1rem;
   color: #666;
-  margin: 0 0 1rem 0;
+  font-size: 1rem;
   line-height: 1.5;
-  flex-grow: 1;
+  margin: 0 0 1rem 0;
 `;
 
-const DifficultyBadge = styled.span<{ difficulty: string }>`
-  display: inline-block;
+const PlayerCount = styled.div`
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+`;
+
+const HashTag = styled.span`
+  color: #3b82f6;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background-color: #eff6ff;
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  text-transform: capitalize;
+`;
+
+const LoginButton = styled.button`
+  ${buttonStyles}
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #2563eb;
+  }
+`;
+
+const LogoutButton = styled.button`
+  ${buttonStyles}
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #dc2626;
+  }
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+`;
+
+const ModalHeader = styled.div`
+  padding: 1.5rem;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const ModalTitle = styled.h2`
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  line-height: 1;
   
-  ${({ difficulty }) => {
-    switch (difficulty) {
-      case 'easy':
-        return 'background-color: #e6f4ea; color: #1e7e34;';
-      case 'medium':
-        return 'background-color: #fff3e0; color: #f57c00;';
-      case 'hard':
-        return 'background-color: #fde7e7; color: #d32f2f;';
-      default:
-        return '';
+  &:hover {
+    color: #1a1a1a;
+  }
+`;
+
+const ModalBody = styled.div`
+  padding: 1.5rem;
+`;
+
+const GameImage = styled.img`
+  width: 100%;
+  height: 300px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+`;
+
+const GameDescription = styled.p`
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0 0 1rem 0;
+`;
+
+const PlayerInfo = styled.div`
+  margin-top: 1rem;
+`;
+
+const ModalFooter = styled.div`
+  padding: 1.5rem;
+  border-top: 1px solid #eee;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+`;
+
+const ModalButton = styled.button<{ primary?: boolean }>`
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  
+  ${({ primary }) => primary ? `
+    background-color: #3b82f6;
+    color: white;
+    
+    &:hover {
+      background-color: #2563eb;
     }
-  }}
+  ` : `
+    background-color: #f3f4f6;
+    color: #1a1a1a;
+    
+    &:hover {
+      background-color: #e5e7eb;
+    }
+  `}
 `;
 
 export default MainBoard; 
