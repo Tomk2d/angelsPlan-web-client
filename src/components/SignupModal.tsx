@@ -59,7 +59,7 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, onSignupSucc
 
     setIsCheckingNickname(true);
     try {
-      const response = await axios.get(`/api/users/check-nickname/${nickname}`);
+      const response = await axios.get(`/api/users/check-nickname?nickname=${nickname}`);
       if (response.data.available) {
         setNicknameError('사용 가능한 닉네임입니다.');
         setIsNicknameValid(true);
@@ -97,7 +97,13 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, onSignupSucc
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPassword = e.target.value;
     setPassword(newPassword);
-    validatePassword(newPassword);
+    const isValid = validatePassword(newPassword);
+    setIsPasswordValid(isValid);
+    if (!isValid) {
+      setPasswordError('비밀번호는 영문, 숫자, 특수문자를 포함한 8자 이상이어야 합니다.');
+    } else {
+      setPasswordError('');
+    }
   };
 
   const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,7 +117,13 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose, onSignupSucc
   const handlePasswordInput = (e: React.FormEvent<HTMLInputElement>) => {
     const newPassword = e.currentTarget.value;
     setPassword(newPassword);
-    validatePassword(newPassword);
+    const isValid = validatePassword(newPassword);
+    setIsPasswordValid(isValid);
+    if (!isValid) {
+      setPasswordError('비밀번호는 영문, 숫자, 특수문자를 포함한 8자 이상이어야 합니다.');
+    } else {
+      setPasswordError('');
+    }
   };
 
   const handleNicknameInput = (e: React.FormEvent<HTMLInputElement>) => {
