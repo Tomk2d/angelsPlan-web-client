@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 import LoginModal from '../components/LoginModal';
 import SignupModal from '../components/SignupModal';
+import GameRoomModal from '../components/GameRoomModal';
 import { useAuth } from '../contexts/AuthContext';
 import { Game } from '../types/game';
 import { useNavigate } from 'react-router-dom';
+import { timeAuctionService } from '../services/timeAuctionService';
 
 const buttonStyles = `
   padding: 0.5rem 1rem;
@@ -13,24 +15,22 @@ const buttonStyles = `
   font-weight: 500;
 `;
 
-interface TimeAuctionRoom {
-  roomId: string;
-  roomName: string;
-  playerIds: string[];
-  maxPlayers: number;
-  status: 'WAITING' | 'IN_PROGRESS' | 'FINISHED';
-}
-
 const MainBoard = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const [isGameModalOpen, setIsGameModalOpen] = useState(false);
+  const [isGameRoomModalOpen, setIsGameRoomModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<{
+    roomId: string;
+    roomName: string;
+    playerCount: number;
+    maxPlayers: number;
+    status: 'WAITING' | 'IN_PROGRESS' | 'FINISHED';
+  } | null>(null);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeAuctionRooms, setTimeAuctionRooms] = useState<TimeAuctionRoom[]>([]);
-  const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -61,34 +61,6 @@ const MainBoard = () => {
 
     fetchGames();
   }, []);
-
-  // TimeAuction 방 목록 가져오기
-  const fetchTimeAuctionRooms = async () => {
-    setIsLoadingRooms(true);
-    try {
-      console.log('🔍 TimeAuction 방 목록 조회 중...');
-      const response = await fetch('/api/rest/time-auction/rooms', {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const roomList = await response.json();
-      console.log('📋 TimeAuction 방 목록 조회 성공:', roomList);
-      setTimeAuctionRooms(roomList);
-    } catch (error) {
-      console.error('❌ TimeAuction 방 목록 조회 실패:', error);
-      setTimeAuctionRooms([]);
-    } finally {
-      setIsLoadingRooms(false);
-    }
-  };
 
   // 인증 상태 변화 로깅
   useEffect(() => {
@@ -121,20 +93,14 @@ const MainBoard = () => {
     logout();
   };
 
-  const handleGameClick = (game: Game) => {
+  const handleGameClick = async (game: Game) => {
     setSelectedGame(game);
     setIsGameModalOpen(true);
-    
-    // TimeAuction 게임인 경우 방 목록도 가져오기
-    if (game.id === 1 && game.name.includes('시간')) {
-      fetchTimeAuctionRooms();
-    }
   };
 
   const handleCloseGameModal = () => {
     setIsGameModalOpen(false);
     setSelectedGame(null);
-    setTimeAuctionRooms([]); // 모달 닫을 때 방 목록 초기화
   };
 
   const handleCreateRoom = async () => {
@@ -152,12 +118,28 @@ const MainBoard = () => {
   };
 
   const handleQuickJoin = async () => {
-    if (!selectedGame) return;
+    if (!selectedGame || !user) return;
     
-    // TimeAuction 게임인 경우 게임 페이지로 이동
+    // TimeAuction 게임인 경우 빠른 참가 API 호출
     if (selectedGame.id === 1 && selectedGame.name.includes('시간')) {
-      navigate('/time-auction');
-      handleCloseGameModal();
+      try {
+        const room = await timeAuctionService.quickJoin(user.id.toString());
+        console.log('방 참가 성공:', room);
+        
+        // 게임 모달 닫고 게임방 모달 열기
+        setIsGameModalOpen(false);
+        setCurrentRoom({
+          roomId: room.roomId,
+          roomName: room.roomName,
+          playerCount: room.playerIds.length,
+          maxPlayers: room.maxPlayers,
+          status: room.status
+        });
+        setIsGameRoomModalOpen(true);
+      } catch (error) {
+        console.error('방 참가 실패:', error);
+        alert('빠른 참가에 실패했습니다. 다시 시도해주세요.');
+      }
       return;
     }
     
@@ -165,10 +147,9 @@ const MainBoard = () => {
     console.log('빠른 참가:', selectedGame.name);
   };
 
-  const handleJoinTimeAuctionRoom = (roomId: string) => {
-    // TimeAuction 게임방 참가 - 실제 게임 페이지로 이동
-    navigate('/time-auction', { state: { roomId } });
-    handleCloseGameModal();
+  const handleCloseGameRoomModal = () => {
+    setIsGameRoomModalOpen(false);
+    setCurrentRoom(null);
   };
 
   if (loading) {
@@ -241,12 +222,18 @@ const MainBoard = () => {
           game={selectedGame}
           onCreateRoom={handleCreateRoom}
           onQuickJoin={handleQuickJoin}
-          // TimeAuction 관련 props 추가
-          isTimeAuctionGame={isTimeAuctionGame}
-          timeAuctionRooms={timeAuctionRooms}
-          isLoadingRooms={isLoadingRooms}
-          onRefreshRooms={fetchTimeAuctionRooms}
-          onJoinRoom={handleJoinTimeAuctionRoom}
+        />
+      )}
+
+      {currentRoom && (
+        <GameRoomModal
+          isOpen={isGameRoomModalOpen}
+          onClose={handleCloseGameRoomModal}
+          roomId={currentRoom.roomId}
+          roomName={currentRoom.roomName}
+          playerCount={currentRoom.playerCount}
+          maxPlayers={currentRoom.maxPlayers}
+          status={currentRoom.status}
         />
       )}
     </PageContainer>
@@ -278,22 +265,12 @@ const GameModal: React.FC<{
   game: Game;
   onCreateRoom: () => void;
   onQuickJoin: () => void;
-  isTimeAuctionGame?: boolean;
-  timeAuctionRooms?: TimeAuctionRoom[];
-  isLoadingRooms?: boolean;
-  onRefreshRooms?: () => void;
-  onJoinRoom?: (roomId: string) => void;
 }> = ({ 
   isOpen, 
   onClose, 
   game, 
   onCreateRoom, 
-  onQuickJoin,
-  isTimeAuctionGame = false,
-  timeAuctionRooms = [],
-  isLoadingRooms = false,
-  onRefreshRooms,
-  onJoinRoom
+  onQuickJoin
 }) => {
   if (!isOpen) return null;
 
@@ -319,54 +296,6 @@ const GameModal: React.FC<{
             빠른 참가하기
           </ModalButton>
         </ModalFooter>
-
-        {/* TimeAuction 방 목록 섹션 */}
-        {isTimeAuctionGame && (
-          <TimeAuctionSection>
-            <SectionHeader>
-              <SectionTitle>기존 게임방 목록</SectionTitle>
-              <RefreshButton onClick={onRefreshRooms} disabled={isLoadingRooms}>
-                {isLoadingRooms ? '새로고침 중...' : '새로고침'}
-              </RefreshButton>
-            </SectionHeader>
-            
-            {isLoadingRooms ? (
-              <LoadingContainer>
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-                <p className="mt-2 text-gray-500 text-sm">방 목록을 불러오는 중...</p>
-              </LoadingContainer>
-            ) : timeAuctionRooms.length === 0 ? (
-              <EmptyContainer>
-                <p className="text-gray-500">현재 생성된 게임방이 없습니다.</p>
-                <p className="text-sm text-gray-400">위의 "방 생성하기"로 새로운 방을 만들어보세요!</p>
-              </EmptyContainer>
-            ) : (
-              <RoomsList>
-                {timeAuctionRooms.map((room) => (
-                  <RoomItem key={room.roomId}>
-                    <RoomInfo>
-                      <RoomName>{room.roomName}</RoomName>
-                      <RoomDetails>
-                        <span>참가자: {room.playerIds.length}/{room.maxPlayers}명</span>
-                        <RoomStatus status={room.status}>
-                          {room.status === 'WAITING' ? '대기 중' : 
-                           room.status === 'IN_PROGRESS' ? '게임 중' : '완료'}
-                        </RoomStatus>
-                      </RoomDetails>
-                    </RoomInfo>
-                    <JoinButton
-                      onClick={() => onJoinRoom?.(room.roomId)}
-                      disabled={room.status !== 'WAITING' || room.playerIds.length >= room.maxPlayers}
-                    >
-                      {room.status !== 'WAITING' ? '참가 불가' :
-                       room.playerIds.length >= room.maxPlayers ? '정원 초과' : '참가하기'}
-                    </JoinButton>
-                  </RoomItem>
-                ))}
-              </RoomsList>
-            )}
-          </TimeAuctionSection>
-        )}
       </ModalContent>
     </ModalOverlay>
   );
@@ -632,137 +561,4 @@ const ModalButton = styled.button<{ primary?: boolean }>`
   `}
 `;
 
-// TimeAuction 방 목록을 위한 새로운 styled components
-const TimeAuctionSection = styled.div`
-  border-top: 1px solid #e5e7eb;
-  padding: 1.5rem;
-  margin-top: 0;
-  background-color: #f8f9fa;
-`;
-
-const SectionHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-`;
-
-const SectionTitle = styled.h3`
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0;
-`;
-
-const RefreshButton = styled.button`
-  ${buttonStyles}
-  background-color: #6b7280;
-  color: white;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  font-size: 0.8rem;
-  padding: 0.4rem 0.8rem;
-
-  &:hover:not(:disabled) {
-    background-color: #4b5563;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
-
-const LoadingContainer = styled.div`
-  text-align: center;
-  padding: 2rem 0;
-`;
-
-const EmptyContainer = styled.div`
-  text-align: center;
-  padding: 2rem 0;
-`;
-
-const RoomsList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: 300px;
-  overflow-y: auto;
-`;
-
-const RoomItem = styled.div`
-  background-color: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: box-shadow 0.2s;
-
-  &:hover {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const RoomInfo = styled.div`
-  flex: 1;
-`;
-
-const RoomName = styled.h4`
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 0.25rem 0;
-`;
-
-const RoomDetails = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.8rem;
-  color: #6b7280;
-`;
-
-const RoomStatus = styled.span<{ status: string }>`
-  padding: 0.2rem 0.6rem;
-  border-radius: 16px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  
-  ${({ status }) => {
-    switch (status) {
-      case 'WAITING':
-        return 'background-color: #fef3c7; color: #92400e;';
-      case 'IN_PROGRESS':
-        return 'background-color: #fee2e2; color: #991b1b;';
-      default:
-        return 'background-color: #f3f4f6; color: #374151;';
-    }
-  }}
-`;
-
-const JoinButton = styled.button`
-  ${buttonStyles}
-  background-color: #3b82f6;
-  color: white;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  margin-left: 1rem;
-  font-size: 0.8rem;
-  padding: 0.4rem 0.8rem;
-
-  &:hover:not(:disabled) {
-    background-color: #2563eb;
-  }
-
-  &:disabled {
-    background-color: #9ca3af;
-    cursor: not-allowed;
-  }
-`;
-
-export default MainBoard; 
+export default MainBoard;
